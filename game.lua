@@ -1537,7 +1537,7 @@ end
 function rCityTickt()
     if rPlayer.End == false then
         local collision = true
-        local pos = Number3(0, 0, 0)
+        local pos = Number3(723.32, 31.40, 144.08)
 
         if (Player.Position.X - pos.X < -5 or Player.Position.X - pos.X < 5) then
             collision = false
