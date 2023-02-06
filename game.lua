@@ -57,6 +57,10 @@ Config = {
     }
 }
 
+---
+--- UTILS FUNCTION
+---
+
 function rSpawnMap(item)
     local map = Shape(item)
 
@@ -182,6 +186,13 @@ function rRefreshLabels()
     else 
         rUi.keyLabel.Text = ""
     end
+
+    --bonus
+    local str_bonus = ""
+    for i=1,rPlayer.Bonus do
+        str_bonus = str_bonus .. "⭐️"
+    end
+    rUi.bonusLabel.Text = str_bonus
 end
 
 function destroyObject()
@@ -198,6 +209,11 @@ function destroyObject()
                     tableItem.Physics = PhysicsMode.Disabled
                     tableItem:SetParent(nil)
                     hit = i
+                    rAudioEffect.Sound = "broken_glass_2"
+                    rAudioEffect:SetParent(World)
+                    rAudioEffect.Volume = 0.5
+                    rAudioEffect.Spatialized = false
+                    rAudioEffect:Play()
                     break
                 end
             end
@@ -246,12 +262,23 @@ function rDebugPlayer(debug)
     return debug
 end
 
+---
+--- CLIENTS EVENTS
+---
+
 Client.OnStart = function()
+
+    --- MODULES
+
     explode = require("explode")
     particles = require("particles")
-    spikes_nb = math.random(7, 20)
 
+    -- GLOBALS VARIABLES
+
+    spikes_nb = math.random(7, 20)
     soundData = {}
+
+    -- MAINS TABLES
 
     rDefault = {
         Mark = TimeCycle.Marks.Noon,
@@ -261,7 +288,7 @@ Client.OnStart = function()
         SkyLightColor = TimeCycle.Marks.Noon.SkyLightColor,
         Camera = Camera.Far
     }
-    -- Item
+
     rItems = {
         RedPortal = Items.divergonia.red_portal_1,
         GrayPortal = Items.divergonia.grey_portal_1,
@@ -315,7 +342,6 @@ Client.OnStart = function()
         lava = 1
     }
 
-    -- Level player
     rPlayer = {
         Lifes = 3,
         Keys = 0,
@@ -327,6 +353,7 @@ Client.OnStart = function()
     rUi = {
         livesLabel = UI.Label("", Anchor.Right, Anchor.Top),
         keyLabel = UI.Label("", Anchor.Right, Anchor.Top),
+        bonusLabel = UI.Label("", Anchor.Right, Anchor.Top),
         missionLabel = UI.Label("", Anchor.Left, Anchor.Bottom),
         timerLabel = UI.Label("", Anchor.Left, Anchor.Top),
         timerDone = true,
@@ -378,7 +405,7 @@ Client.OnStart = function()
                 Items = {
                     {
                         Item = rItems.Chest,
-                        Pos = Number3(1221.72, 75.0, 611.83),
+                        Pos = Number3(1221.72, 75.0, 614.83),
                         Scale = 0.3,
                         Rotation = Number3(0, 0, 0),
                     },
@@ -399,25 +426,25 @@ Client.OnStart = function()
                     {
                         Player = true,
                         Text = "Qui est Surt ? Et pourquoi me cherche-t-il ?",
-                        Wait = 4.0,
+                        Wait = 3.0,
                         Music = "1perso1_out.mp3"
                     },
                     {
                         Player = false,
                         Text = "Surt est un geant de feu qui regne sur Muspellheim.\nTu n'as rien a faire ici, c'est dangereux. Si Surt te trouve, il te tuera.",
-                        Wait = 12.0,
+                        Wait = 8.0,
                         Music = "1groot2_out.mp3"
                     },
                     {
                         Player = true,
                         Text = "Mais comment suis-je arrive ici ? Je ne me souviens de rien.",
-                        Wait = 8.0,
+                        Wait = 4.0,
                         Music = "1perso2_out.mp3"
                     },
                     {
                         Player = false,
                         Text = "Je ne sais pas. Peu importe comment tu es arrive ici, il est temps de fuir.\nJe vais rester ici pour te donner un peu plus de temps.\nPars vite, trouve un chemin de sortie et echappe a Surt !",
-                        Wait = 18.0,
+                        Wait = 14.0,
                         Music = "1groot3_out.mp3"
                     },
                     {
@@ -429,7 +456,7 @@ Client.OnStart = function()
                     {
                         Player = false,
                         Text = "Ce n'est rien. Vas-y maintenant ! Je vais tenir Surt a distance le plus longtemps possible.\nSois prudent !",
-                        Wait = 8.0,
+                        Wait = 6.0,
                         Music = "1groot4_out.mp3"
                     }
                 }
@@ -1214,13 +1241,15 @@ Client.OnStart = function()
     dropPlayer()
 
     rUi.timerLabel.Text = "Time: " .. math.floor(rUi.timerMin) .. ":" .. math.floor(rUi.timerSec)
+    UI.Crosshair = false -- hides the crosshair
 
     -- Clouds
     Clouds.On = false
 	Fog.On = false
 
     -- Init sound
-    rAudioListener = AudioSource()
+    rAudioSound = AudioSource()
+    rAudioEffect = AudioSource()
 
     -- TEST ZONE --
 
@@ -1259,16 +1288,30 @@ Client.Tick = function(dt)
 
     -- UI
     rRefreshLabels()
-    if rUi.timerDone then
+    if rPlayer.End == false then
         rUi.timerSec = rUi.timerSec + dt
     end
     if rUi.timerSec >= 60 and rPlayer.End == false then
         rUi.timerMin = rUi.timerMin + 1
+        rUi.timerSec = 0
     end
     if rUi.timerSec < 10 then
         rUi.timerLabel.Text = "Temps : " .. math.floor(rUi.timerMin) .. ":0" .. math.floor(rUi.timerSec)
     else 
         rUi.timerLabel.Text = "Temps : " .. math.floor(rUi.timerMin) .. ":" .. math.floor(rUi.timerSec)
+    end
+
+    -- Life check
+    if rPlayer.Lifes < 1 then
+        print("❌ Vous avez perdu !")
+        rWorld.SetLevel(1)
+        dropPlayer()
+        rPlayer.End = false
+        rPlayer.Keys = 0
+        rPlayer.Bonus = 0
+        rUi.timerMin = 0
+        rUi.timerSec = 0
+        rPlayer.Lifes = 3
     end
 
     -- Levels Tick
@@ -1280,6 +1323,9 @@ Client.Tick = function(dt)
     end
     if rWorld.Level == 3 then
         rNidavellirTick()
+    end
+    if rWorld.Level == 5 then
+        rCityTickt()
     end
 end
 
@@ -1330,11 +1376,17 @@ function rMuspellheimTick()
 
     -- Objects collisions
     for index, item in pairs(rWorld.Items) do
-        if item.rItem == rItems.Chest or item.rItem == rItems.FeeChest then
+        if item.rItem == rItems.Chest then
             rCollisionObject(item, function()
                 if item.claim ~= true then
                     item.claim = true
                     rPlayer.Bonus = rPlayer.Bonus + 1
+                    rAudioEffect.Sound = "metal_clanging_1"
+                    rAudioEffect:SetParent(World)
+                    rAudioEffect.Volume = 0.5
+                    rAudioEffect.Spatialized = false
+                    rAudioEffect:Play()
+                    Player:TextBubble("Super, un bonus!")
                 end
             end)
         end
@@ -1349,6 +1401,11 @@ function rMuspellheimTick()
         rPlayer.Lifes = rPlayer.Lifes - 1
         dropPlayer()
         Player:TextBubble("Aie !")
+        rAudioEffect.Sound = "death_scream_guy_3"
+        rAudioEffect:SetParent(World)
+        rAudioEffect.Volume = 0.5
+        rAudioEffect.Spatialized = false
+        rAudioEffect:Play()
     end
 end
 
@@ -1362,10 +1419,11 @@ function rGroot(index)
     dial = rDialogue(dialogue.Text, dialogue.Wait, (dialogue.Player and Player or groot))
     for _, music in ipairs(soundData) do
         if music ~= nil and music.name == dialogue.Music and music.music ~= nil then
-            rAudioListener.Sound = music.music
-            rAudioListener:SetParent(World)
-            rAudioListener.Spatialized = false
-            rAudioListener:Play()
+            rAudioSound:Pause()
+            rAudioSound.Sound = music.music
+            rAudioSound:SetParent(World)
+            rAudioSound.Spatialized = false
+            rAudioSound:Play()
         end
     end
     Timer(dialogue.Wait, function()
@@ -1376,10 +1434,11 @@ function rGroot(index)
             rPlayer.Blocked = false
             for _, music in ipairs(soundData) do
                 if music ~= nil and music.name == "Yggdrasil_feu_V1.mp3" then
-                    rAudioListener.Sound = music.music
-                    rAudioListener.Volume = 0.9
-                    rAudioListener.Spatialized = false
-                    rAudioListener:Play()
+                    rAudioSound:Pause()
+                    rAudioSound.Sound = music.music
+                    rAudioSound.Volume = 0.9
+                    rAudioSound.Spatialized = false
+                    rAudioSound:Play()
                 end
             end
         end
@@ -1451,10 +1510,11 @@ function rAlfheimInit()
 	end
     for _, music in ipairs(soundData) do
         if music ~= nil and music.name == "Yggdrasil_elfe_v1.mp3" then
-            rAudioListener.Sound = music.music
-            rAudioListener.Volume = 0.9
-            rAudioListener.Spatialized = false
-            rAudioListener:Play()
+            rAudioSound:Pause()
+            rAudioSound.Sound = music.music
+            rAudioSound.Volume = 0.9
+            rAudioSound.Spatialized = false
+            rAudioSound:Play()
         end
     end
 end
@@ -1468,7 +1528,31 @@ function rAlfheimTick()
     if impact.Block.Color == Color(255, 102, 102, 212) and Player.Position.Y - impact.Block.Position.Y <= 5.0 then
         rPlayer.Lifes = rPlayer.Lifes - 1
         dropPlayer()
-        Player:TextBubble("Aïe !")
+        Player:TextBubble("Aie !")
+        Player:TextBubble("Aie !")
+        rAudioEffect.Sound = "death_scream_guy_3"
+        rAudioEffect.Volume = 0.5
+        rAudioEffect:SetParent(World)
+        rAudioEffect.Spatialized = false
+        rAudioEffect:Play()
+    end
+
+    -- Chest
+    for index, item in pairs(rWorld.Items) do
+        if item.rItem == rItems.FeeChest then
+            rCollisionObject(item, function()
+                if item.claim ~= true then
+                    item.claim = true
+                    rPlayer.Bonus = rPlayer.Bonus + 1
+                    rAudioEffect.Sound = "metal_clanging_1"
+                    rAudioEffect:SetParent(World)
+                    rAudioEffect.Volume = 0.5
+                    rAudioEffect.Spatialized = false
+                    rAudioEffect:Play()
+                    Player:TextBubble("Super, un bonus!")
+                end
+            end)
+        end
     end
 end
 
@@ -1492,10 +1576,11 @@ function rNidavellirInit()
     table.insert(rWorld.Items, pick)
     for _, music in ipairs(soundData) do
         if music ~= nil and music.name == "AMB_GROTTE_ET_THEME_out.mp3" then
-            rAudioListener.Sound = music.music
-            rAudioListener.Volume = 0.9
-            rAudioListener.Spatialized = false
-            rAudioListener:Play()
+            rAudioSound:Pause()
+            rAudioSound.Sound = music.music
+            rAudioSound.Volume = 0.9
+            rAudioSound.Spatialized = false
+            rAudioSound:Play()
         end
     end
 end
@@ -1508,6 +1593,11 @@ function rNidavellirTick()
                 rWorld.NeedKey = false
                 item:RemoveFromParent()
                 table.remove(rWorld.Items, index)
+
+                local weapon = Shape(rItems.Pickaxe)
+                weapon.Scale = 0.55
+                Player:EquipRightHand(weapon)
+                table.insert(rWorld.Items, weapon)
             end)
         end
     end
@@ -1517,21 +1607,26 @@ function rNiflheimInit()
     -- Camera render distance
     Camera.Far = rDefault.Camera * 2
 
-    weapon = Shape(rItems.Pickaxe)
-    weapon.Scale = 0.69
+    local weapon = Shape(rItems.Pickaxe)
+    weapon.Scale = 0.55
     Player:EquipRightHand(weapon)
+    table.insert(rWorld.Items, weapon)
     for _, music in ipairs(soundData) do
         if music ~= nil and music.name == "Yggdrasil_glace_V1_2.mp3" then
-            rAudioListener.Sound = music.music
-            rAudioListener.Volume = 0.9
-            rAudioListener.Spatialized = false
-            rAudioListener:Play()
+            rAudioSound:Pause()
+            rAudioSound.Sound = music.music
+            rAudioSound.Volume = 0.9
+            rAudioSound.Spatialized = false
+            rAudioSound:Play()
         end
     end
 end
 
 function rCityInit()
     Camera.Far = rDefault.Camera * 2
+    rAudioSound:Pause()
+    Player:EquipRightHand(nil)
+    Player:TextBubble("Je suis enfin de retour... Je devrais rentrer à la maison")
 end
 
 function rCityTickt()
@@ -1539,17 +1634,29 @@ function rCityTickt()
         local collision = true
         local pos = Number3(723.32, 31.40, 144.08)
 
-        if (Player.Position.X - pos.X < -5 or Player.Position.X - pos.X < 5) then
+        if (Player.Position.X - pos.X < -15 or Player.Position.X - pos.X > 15) then
             collision = false
         end
-        if (Player.Position.Y - pos.Y < -5 or Player.Position.Z - pos.Z < 5) then
+        if (Player.Position.Y - pos.Y < -15 or Player.Position.Z - pos.Z > 15) then
             collision = false
         end
-        if (Player.Position.Z - pos.Z < -5 or Player.Position.Z - pos.Z < 5) then
+        if (Player.Position.Z - pos.Z < -15 or Player.Position.Z - pos.Z > 15) then
             collision = false
         end
         if (collision) then
+            -- End of the game
             rPlayer.End = true
+            print("Time : "..math.floor(rUi.timerMin)..':'..math.floor(rUi.timerSec))
+            print("⭐️ Bonus : "..rPlayer.Bonus)
+            print("✅ Your score : "..math.floor(5000 - (rUi.timerMin * 60 + rUi.timerSec)) + rPlayer.Bonus * 25)
+            rWorld.SetLevel(1)
+            dropPlayer()
+            rPlayer.End = false
+            rUi.timerMin = 0
+            rUi.timerSec = 0
+            rPlayer.Keys = 0
+            rPlayer.Bonus = 0
+            rPlayer.Lifes = 3
         end
     end
 end
